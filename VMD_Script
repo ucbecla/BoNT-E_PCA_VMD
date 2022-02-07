@@ -1,0 +1,64 @@
+#Change file names accordingly
+mol new E_Backbone.pdb
+
+mol addfile E_Half_350.dcd waitfor -1
+
+#Opens a text file for writing the data into.
+set RMSD1 [open "Rg_RMSD_Half_350.dat" w]
+
+#This is the RMSD / Rg with respect to the starting PDB structure. Change atom selections accordingly.
+set All_ref [atomselect 0 "protein" frame 0]
+set TDLC_ref [atomselect 0 "residue 0 to 800" frame 0]
+set BD_ref [atomselect 0 "residue 801 to 1246" frame 0]
+set Switch_ref [atomselect 0 "residue 581 to 629" frame 0]
+
+#Creates atom selections of the same atoms but not fixed at the reference frame.
+set All [atomselect 0 "protein"]
+set TDLC [atomselect 0 "residue 0 to 800"]
+set BD [atomselect 0 "residue 801 to 1246"]
+set Switch [atomselect 0 "residue 581 to 629"]
+
+#Detects the number of frames in the trajectory.
+set num_steps [molinfo 0 get numframes]
+
+#In this case I've actually ignored the RMSD of PDB itself, as this would just be 0.
+#So this loop starts at the first frame of the actual trajectory.
+for {set frame 1} {$frame < $num_steps} {incr frame} {
+#Sets the atom selections at the frame that the loop is using.
+$All frame $frame;
+$BD frame $frame;
+$TDLC frame $frame;
+$Switch frame $frame;
+
+#Measure Rg.
+set rg [measure rgyr $All]
+
+#Sequence is as follows:
+#1. Create the matrix to align the selections.
+#2. Move the whole protein by this matrix.
+#3. Measure RMSD of the selection.
+set trans_mat [measure fit $TDLC $TDLC_ref];
+$All move $trans_mat;
+set rmsd1 [measure rmsd $TDLC $TDLC_ref];
+set rmsd2 [measure rmsd $BD $BD_ref];
+
+set trans_mat2 [measure fit $BD $BD_ref];
+$All move $trans_mat2;
+set rmsd3 [measure rmsd $BD $BD_ref];
+set rmsd4 [measure rmsd $TDLC $TDLC_ref];
+
+set trans_mat3 [measure fit $Switch $Switch_ref];
+$All move $trans_mat3;
+set rmsd5 [measure rmsd $Switch $Switch_ref];
+
+#I think you might only need this one (whole protein RMSD)
+set trans_mat4 [measure fit $All $All_ref];
+$All move $trans_mat4;
+set rmsd6 [measure rmsd $All $All_ref];
+
+#Write all calculated RMSD values to the file.
+#Default output is in angstroms.
+puts $RMSD1 "$frame $rmsd6 $rg $rmsd3 $rmsd1 $rmsd2 $rmsd4 $rmsd5";
+}
+
+close $RMSD1
